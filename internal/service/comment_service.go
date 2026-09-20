@@ -1,10 +1,12 @@
 package service
 
 import (
+	"advanced-blog-management-system/internal/errors/apperrors"
 	"advanced-blog-management-system/internal/model"
 	"advanced-blog-management-system/internal/repository"
 	"context"
 	"fmt"
+	"strings"
 )
 
 type CommentService struct {
@@ -19,20 +21,55 @@ func NewCommentService(repo *repository.CommentRepo, postRepo repository.PostRep
 	}
 }
 
-// TODO: Реализовать Create()
-// Валидировать postID, проверить что пост существует,
-// валидировать content (не пусто, не более 1000 символов),
-// создать комментарий, сохранить в БД, вернуть Comment
+// Create создает новый комментарий.
 func (s *CommentService) Create(ctx context.Context, userID, postID int, content string) (*model.Comment, error) {
-	// TODO: реализовать
-	return nil, nil
+	trimContent := strings.TrimSpace(content)
+
+	// Правила длины и postID > 0 описаны тегами в CommentCreateRequest
+	req := &model.CommentCreateRequest{Content: trimContent, PostID: postID}
+	if err := req.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid create comment request: %w", err)
+	}
+
+	exists, err := s.postRepo.Exists(ctx, postID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get post: %w", err)
+	}
+
+	if !exists {
+		return nil, apperrors.ErrPostNotFound
+	}
+
+	comment := &model.Comment{Content: trimContent, PostID: postID, AuthorID: userID}
+	if err := s.repo.Create(ctx, comment); err != nil {
+		return nil, fmt.Errorf("failed to create comment: %w", err)
+	}
+
+	return comment, nil
 }
 
-// TODO: Реализовать GetByPost()
-// Валидировать postID, проверить что пост существует,
-// валидировать limit/offset (limit 1-100, default 10, offset >= 0),
-// получить комментарии поста, вернуть слайс и общее количество
+// GetByPost получает комментарии к посту.
 func (s *CommentService) GetByPost(ctx context.Context, postID, limit, offset int) ([]*model.Comment, int, error) {
-	// TODO: реализовать
-	return nil, 0, nil
+	exists, err := s.postRepo.Exists(ctx, postID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get post: %w", err)
+	}
+
+	if !exists {
+		return nil, 0, apperrors.ErrPostNotFound
+	}
+
+	limit, offset = normalizePagination(limit, offset)
+
+	comments, err := s.repo.GetByPostID(ctx, postID, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get comments: %w", err)
+	}
+
+	count, err := s.repo.GetCountByPostID(ctx, postID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get count of comments: %w", err)
+	}
+
+	return comments, count, nil
 }
