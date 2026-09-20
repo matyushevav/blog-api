@@ -9,6 +9,17 @@ import (
 	_ "github.com/lib/pq"
 )
 
+const (
+	// maxOpenConns - максимум одновременно открытых соединений с БД.
+	maxOpenConns = 25
+
+	// maxIdleConns - максимум простаивающих соединений в пуле.
+	maxIdleConns = 25
+
+	// connMaxLifetime - время жизни одного соединения.
+	connMaxLifetime = 5 * time.Minute
+)
+
 // Config содержит конфигурацию базы данных
 type Config struct {
 	Host     string
@@ -19,55 +30,62 @@ type Config struct {
 	SSLMode  string
 }
 
-// TODO: Реализовать NewPostgresDB()
-// Функция должна:
-// 1. Сформировать DSN строку используя GetDSN(cfg)
-// 2. Открыть подключение используя sql.Open("postgres", dsn)
-//    - Проверить ошибку открытия подключения
-// 3. Проверить подключение используя db.Ping()
-//    - Если ошибка - вернуть fmt.Errorf("failed to ping database: %w", err)
-// 4. Настроить пул соединений:
-//    - db.SetMaxOpenConns(25) - максимум открытых соединений
-//    - db.SetMaxIdleConns(25) - максимум неиспользуемых в пуле
-//    - db.SetConnMaxLifetime(5 * time.Minute) - время жизни соединения
-// 5. Залогировать "Connected to PostgreSQL database" используя log.Println()
-// 6. Вернуть *sql.DB
+// NewPostgresDB открывает подключение к PostgreSQL и настраивает пул соединений.
 func NewPostgresDB(cfg Config) (*sql.DB, error) {
-	// TODO: реализовать
-	return nil, nil
+	dsn := GetDSN(cfg)
+
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	if err := db.Ping(); err != nil {
+		db.Close()
+
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	db.SetMaxOpenConns(maxOpenConns)
+	db.SetMaxIdleConns(maxIdleConns)
+	db.SetConnMaxLifetime(connMaxLifetime)
+
+	log.Println("Connected to PostgreSQL database")
+
+	return db, nil
 }
 
-// TODO: Реализовать GetDSN()
-// Функция формирует Data Source Name строку для подключения к PostgreSQL
-// 1. Используйте fmt.Sprintf() для форматирования
-// 2. Формат DSN: "host=%s port=%d user=%s password=%s dbname=%s sslmode=%s"
-// 3. Подставьте значения из Config в нужном порядке:
-//    - cfg.Host (например, "localhost")
-//    - cfg.Port (например, 5432)
-//    - cfg.User (например, "postgres")
-//    - cfg.Password
-//    - cfg.DBName (например, "blogdb")
-//    - cfg.SSLMode (например, "disable")
-// 4. Вернуть построенную строку
-// Пример результата: "host=localhost port=5432 user=postgres password=secret dbname=blogdb sslmode=disable"
+// GetDSN собирает строку подключения к PostgreSQL из конфигурации.
 func GetDSN(cfg Config) string {
-	// TODO: реализовать
-	return ""
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode)
 }
 
-// TODO: Реализовать Close()
-// Закрывает соединение с базой данных
-// 1. Проверить что db != nil
-// 2. Вызвать db.Close()
-// 3. Залогировать "Database connection closed" используя log.Println()
+// Close закрывает подключение к базе данных.
 func Close(db *sql.DB) {
-	// TODO: реализовать
+	if db == nil {
+		return
+	}
+
+	if err := db.Close(); err != nil {
+		log.Printf("Failed to close connection with database: %v", err)
+		return
+	}
+
+	log.Println("Database connection closed")
 }
 
-// TODO: Реализовать TestConnection()
-// Выполняет тестовый запрос к БД для проверки подключения
-// Вернуть ошибку если подключение не работает, nil если успешно
+// TestConnection выполняет пробный запрос и сообщает, работает ли подключение.
 func TestConnection(db *sql.DB) error {
-	// TODO: реализовать
+	if db == nil {
+		return fmt.Errorf("connection with database is not initialized")
+	}
+
+	query := "SELECT 1"
+	row := db.QueryRow(query)
+
+	var res int
+	if err := row.Scan(&res); err != nil {
+		return fmt.Errorf("failed to test database connection: %w", err)
+	}
 	return nil
 }

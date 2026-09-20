@@ -2,6 +2,8 @@ package auth
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -12,7 +14,15 @@ var (
 	ErrExpiredToken = errors.New("token expired")
 )
 
-// Claims представляет данные, хранимые в JWT токене
+const (
+	// tokenIssuer - значение поля iss, кто выпустил токен.
+	tokenIssuer = "blog-api"
+
+	// defaultTTLHours - срок жизни токена, если в конфиге задан некорректный.
+	defaultTTLHours = 24
+)
+
+// Claims представляет данные, хранимые в JWT токене.
 type Claims struct {
 	UserID   int    `json:"user_id"`
 	Email    string `json:"email"`
@@ -20,38 +30,74 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// TODO: Добавить структуру JWTManager с полями secretKey []byte и ttl time.Duration
-// Реализовать конструктор NewJWTManager(secretKey string, ttlHours int) *JWTManager
+// JWTManager хранит секретный ключ для подписи токенов и срок их жизни.
 type JWTManager struct {
 	secretKey []byte
 	ttl       time.Duration
 }
 
-// TODO: Реализовать конструктор NewJWTManager
-// Параметры: secretKey string, ttlHours int
-// Вернуть: *JWTManager с инициализированными полями
+// NewJWTManager создает менеджер токенов с заданным секретом и сроком жизни.
 func NewJWTManager(secretKey string, ttlHours int) *JWTManager {
-	// TODO: реализовать
-	return nil
+	if ttlHours <= 0 {
+		ttlHours = defaultTTLHours
+	}
+
+	return &JWTManager{
+		secretKey: []byte(secretKey),
+		ttl:       time.Duration(ttlHours) * time.Hour,
+	}
 }
 
-// TODO: Реализовать метод GenerateToken(userID int, email, username string) (string, time.Time, error)
-// - Создать Claims со сроком действия = now + m.ttl
-// - Установить IssuedAt, NotBefore, ExpiresAt, Issuer, Subject в Claims
-// - Подписать токен методом HS256 секретным ключом
-// - Вернуть (tokenString, expiresAt, nil) или ("", time.Time{}, error)
+// GenerateToken выпускает подписанный JWT и возвращает его вместе со временем истечения.
 func (m *JWTManager) GenerateToken(userID int, email, username string) (string, time.Time, error) {
-	// TODO: реализовать
-	return "", time.Time{}, nil
+	now := time.Now()
+	expiresAt := now.Add(m.ttl)
+
+	claims := &Claims{
+		UserID:   userID,
+		Email:    email,
+		Username: username,
+		RegisteredClaims: jwt.RegisteredClaims{
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			Issuer:    tokenIssuer,
+			Subject:   strconv.Itoa(userID),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	signed, err := token.SignedString(m.secretKey)
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("failed to sign token: %w", err)
+	}
+
+	return signed, expiresAt, nil
 }
 
-// TODO: Реализовать метод ValidateToken(tokenString string) (*Claims, error)
-// - Распарсить токен с проверкой подписи через jwt.ParseWithClaims
-// - Извлечь Claims из токена
-// - Проверить что token.Valid == true и claims != nil
-// - Проверить что время истечения еще не наступило (ExpiresAt.Time > now)
-// - Вернуть claims или ошибку (ErrInvalidToken, ErrExpiredToken)
+// ValidateToken проверяет подпись и срок действия токена и возвращает его Claims.
 func (m *JWTManager) ValidateToken(tokenString string) (*Claims, error) {
-	// TODO: реализовать
-	return nil, nil
+	claims := &Claims{}
+
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
+		return m.secretKey, nil
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
+	if err != nil {
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			return nil, ErrExpiredToken
+		}
+
+		return nil, ErrInvalidToken
+	}
+
+	if token == nil || !token.Valid {
+		return nil, ErrInvalidToken
+	}
+
+	if claims.ExpiresAt == nil || !claims.ExpiresAt.After(time.Now()) {
+		return nil, ErrExpiredToken
+	}
+
+	return claims, nil
 }

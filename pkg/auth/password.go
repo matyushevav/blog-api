@@ -2,7 +2,9 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -10,30 +12,58 @@ import (
 var (
 	ErrEmptyPassword    = errors.New("password cannot be empty")
 	ErrPasswordTooShort = errors.New("password is too short")
+	ErrPasswordTooWeak  = errors.New("password must contain upper, lower, digit and special characters")
 )
 
-// TODO: Реализовать HashPassword(password string) (string, error)
-// - Проверить что пароль не пустой, вернуть ErrEmptyPassword если пусто
-// - Использовать bcrypt.GenerateFromPassword с bcrypt.DefaultCost
-// - Вернуть хешированный пароль как string или ошибку
+// minPasswordLength - минимальная длина пароля для ValidatePasswordStrength.
+const minPasswordLength = 8
+
+// HashPassword возвращает bcrypt-хеш пароля.
 func HashPassword(password string) (string, error) {
-	// TODO: реализовать
-	return "", nil
+	if password == "" {
+		return "", ErrEmptyPassword
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	return string(hash), nil
 }
 
-// TODO: Реализовать CheckPassword(password, hash string) bool
-// - Использовать bcrypt.CompareHashAndPassword для проверки пароля и хеша
-// - Вернуть true если пароль совпадает, false если не совпадает или ошибка
+// CheckPassword проверяет, соответствует ли пароль хешу.
 func CheckPassword(password, hash string) bool {
-	// TODO: реализовать
-	return false
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
-// TODO: Реализовать ValidatePasswordStrength(password string) error (опционально)
-// - Проверить минимальную длину (8 символов)
-// - Проверить наличие различных типов символов (заглавные, строчные, цифры, спецсимволы)
-// - Вернуть ошибку если пароль не соответствует требованиям
+// ValidatePasswordStrength проверяет сложность пароля: минимум
 func ValidatePasswordStrength(password string) error {
-	// TODO: реализовать (опционально)
+	if password == "" {
+		return ErrEmptyPassword
+	}
+
+	if utf8.RuneCountInString(password) < minPasswordLength {
+		return ErrPasswordTooShort
+	}
+
+	var hasUpper, hasLower, hasDigit, hasSpecial bool
+	for _, r := range password {
+		switch {
+		case unicode.IsUpper(r):
+			hasUpper = true
+		case unicode.IsLower(r):
+			hasLower = true
+		case unicode.IsDigit(r):
+			hasDigit = true
+		case unicode.IsPunct(r) || unicode.IsSymbol(r):
+			hasSpecial = true
+		}
+	}
+
+	if !hasUpper || !hasLower || !hasDigit || !hasSpecial {
+		return ErrPasswordTooWeak
+	}
+
 	return nil
 }

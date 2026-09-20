@@ -94,37 +94,34 @@ type CommentResponse struct {
 	UpdatedAt time.Time    `json:"updated_at"`
 }
 
-// TODO: Реализовать ToResponse()
-// Преобразовать User в UserResponse (скопировать поля, исключая Password)
+var validate = validator.New()
+
+// ToResponse преобразует User в UserResponse, исключая хеш пароля.
 func (u *User) ToResponse() UserResponse {
-	// TODO: реализовать
-	return UserResponse{}
+	return UserResponse{
+		ID:        u.ID,
+		Username:  u.Username,
+		Email:     u.Email,
+		CreatedAt: u.CreatedAt,
+	}
 }
 
-// TODO: Реализовать Validate() для UserCreateRequest
-// Использовать validator.New().Struct(r)
+// Validate проверяет данные запроса на регистрацию.
 func (r *UserCreateRequest) Validate() error {
-	// TODO: реализовать
-	return nil
+	return validate.Struct(r)
 }
 
-// TODO: Реализовать Validate() для UserLoginRequest
-// Использовать validator.New().Struct(r)
+// Validate проверяет данные запроса на вход.
 func (r *UserLoginRequest) Validate() error {
-	// TODO: реализовать
-	return nil
+	return validate.Struct(r)
 }
 
-// TODO: Реализовать Validate() для PostCreateRequest
-// Использовать validator.New().Struct(r)
+// Validate проверяет данные запроса на создание поста.
 func (r *PostCreateRequest) Validate() error {
-	// TODO: реализовать
-	return nil
+	return validate.Struct(r)
 }
 
-// TODO: Реализовать Validate() для CommentCreateRequest
-// Использовать validator.New().Struct(r)
+// Validate проверяет данные запроса на создание комментария.
 func (r *CommentCreateRequest) Validate() error {
-	// TODO: реализовать
-	return nil
+	return validate.Struct(r)
 }

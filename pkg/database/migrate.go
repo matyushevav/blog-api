@@ -6,31 +6,47 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
-// TODO: Реализовать Migrate()
-// Функция выполняет SQL миграции из папки migrations/:
-// 1. Получить путь к папке migrations:
-//    - Используйте os.ReadDir("migrations") для чтения содержимого
-//    - Если ошибка - вернуть fmt.Errorf("failed to read migrations directory: %w", err)
-// 2. Отфильтровать SQL файлы:
-//    - Прочитать все файлы из папки migrations
-//    - Выбрать только файлы с расширением .sql
-//    - Отсортировать по имени (001_*, 002_*, 003_*, и т.д.)
-// 3. Для каждого файла миграции по порядку:
-//    - Залогировать "Running migration: <filename>"
-//    - Прочитать содержимое файла используя os.ReadFile(filepath.Join("migrations", filename))
-//    - Выполнить SQL используя db.Exec(string(content))
-//    - Если ошибка - залогировать и вернуть fmt.Errorf("failed to run migration %s: %w", filename, err)
-//    - Если успешно - залогировать "Successfully applied migration: <filename>"
-// 4. После всех миграций вернуть nil
-//
-// Примечание: порядок выполнения ВАЖЕН!
-// Файлы должны выполняться в алфавитном порядке:
-// - 001_init_schema.sql (создание таблиц)
-// - 002_add_foreign_keys.sql (внешние ключи)
-// - 003_create_indexes.sql (индексы)
+// migrationsDir - папка с SQL-миграциями.
+const migrationsDir = "migrations"
+
+// Migrate выполняет все SQL-миграции из папки migrations в порядке имен файлов.
 func Migrate(db *sql.DB) error {
-	// TODO: реализовать
+	entries, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		return fmt.Errorf("failed to read migrations directory: %w", err)
+	}
+
+	files := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" {
+			continue
+		}
+
+		files = append(files, entry.Name())
+	}
+
+	// Сортируем файлы
+	sort.Strings(files)
+
+	for _, name := range files {
+		log.Printf("Running migration: %s", name)
+
+		content, err := os.ReadFile(filepath.Join(migrationsDir, name))
+		if err != nil {
+			return fmt.Errorf("failed to read migration %s: %w", name, err)
+		}
+
+		if _, err := db.Exec(string(content)); err != nil {
+			log.Printf("Migration failed: %s: %v", name, err)
+
+			return fmt.Errorf("failed to run migration %s: %w", name, err)
+		}
+
+		log.Printf("Successfully applied migration: %s", name)
+	}
+
 	return nil
 }

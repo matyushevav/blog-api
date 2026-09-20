@@ -2,20 +2,51 @@ package main
 
 import (
 	"log"
+	"os"
+	"strconv"
+
+	"advanced-blog-management-system/pkg/database"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
 	// TODO: Загрузить .env используя godotenv.Load()
 	// Обработать ошибку: warning если файла нет, так как переменные могут быть в системе
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: .env file not found, using environment variables: %v", err)
+	}
 
 	// TODO: Реализовать загрузку конфигурации из переменных окружения
 	// Config должен содержать: ServerHost, ServerPort, DB параметры, JWT параметры
+	dbPort, err := strconv.Atoi(getEnv("DB_PORT", "5432"))
+	if err != nil {
+		log.Fatalf("Invalid DB_PORT: %v", err)
+	}
+
+	dbCfg := database.Config{
+		Host:     getEnv("DB_HOST", "localhost"),
+		Port:     dbPort,
+		User:     getEnv("DB_USER", "postgres"),
+		Password: getEnv("DB_PASSWORD", "postgres"),
+		DBName:   getEnv("DB_NAME", "blog_db"),
+		SSLMode:  getEnv("DB_SSLMODE", "disable"),
+	}
 
 	// TODO: Найти корневую папку проекта (поддержка Docker)
 	// Искать папку migrations в текущей директории и выше (до 2 уровней)
 
 	// TODO: Подключиться к PostgreSQL БД
 	// Использовать database.NewPostgresDB() и database.Migrate()
+	db, err := database.NewPostgresDB(dbCfg)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer database.Close(db)
+
+	if err := database.Migrate(db); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
 
 	// TODO: Инициализировать JWTManager
 	// auth.NewJWTManager(jwtSecret, jwtExpiryHours)
@@ -46,6 +77,15 @@ func main() {
 	// Завершить сервер с таймаутом 30 секунд и закрыть БД
 
 	log.Println("Server starting... (TODO: implement main.go)")
+}
+
+// getEnv возвращает значение переменной окружения или defaultValue, если она не задана.
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+
+	return defaultValue
 }
 
 func setupRouter(authHandler interface{}, postHandler interface{}, commentHandler interface{}, loggingMW interface{}, authMW interface{}) interface{} {
