@@ -1,0 +1,12 @@
+.env
+.env.local
+.env.*.local
+.git
+.gitignore
+.vscode
+.idea
+*.md
+log.txt
+Dockerfile
+docker-compose.yml
+.dockerignore

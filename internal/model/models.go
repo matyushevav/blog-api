@@ -77,21 +77,21 @@ type TokenResponse struct {
 
 // PostResponse - структура для ответа с данными поста
 type PostResponse struct {
-	ID        int          `json:"id"`
-	Title     string       `json:"title"`
-	Content   string       `json:"content"`
-	Author    UserResponse `json:"author"`
-	CreatedAt time.Time    `json:"created_at"`
+	ID        int       `json:"id"`
+	Title     string    `json:"title"`
+	Content   string    `json:"content"`
+	AuthorID  int       `json:"author_id"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // CommentResponse - структура для ответа с данными комментария
 type CommentResponse struct {
-	ID        int          `json:"id"`
-	Content   string       `json:"content"`
-	PostID    int          `json:"post_id"`
-	Author    UserResponse `json:"author"`
-	CreatedAt time.Time    `json:"created_at"`
-	UpdatedAt time.Time    `json:"updated_at"`
+	ID        int       `json:"id"`
+	Content   string    `json:"content"`
+	PostID    int       `json:"post_id"`
+	AuthorID  int       `json:"author_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 var validate = validator.New()

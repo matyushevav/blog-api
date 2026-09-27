@@ -41,3 +41,6 @@ temp/
 # Build output
 dist/
 build/
+
+# Logs
+log.txt

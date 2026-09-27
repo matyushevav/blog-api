@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -77,7 +78,7 @@ func Close(db *sql.DB) {
 // TestConnection выполняет пробный запрос и сообщает, работает ли подключение.
 func TestConnection(db *sql.DB) error {
 	if db == nil {
-		return fmt.Errorf("connection with database is not initialized")
+		return errors.New("connection with database is not initialized")
 	}
 
 	query := "SELECT 1"
@@ -87,5 +88,6 @@ func TestConnection(db *sql.DB) error {
 	if err := row.Scan(&res); err != nil {
 		return fmt.Errorf("failed to test database connection: %w", err)
 	}
+
 	return nil
 }

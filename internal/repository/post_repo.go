@@ -82,6 +82,7 @@ func (r *PostRepo) GetAll(ctx context.Context, limit, offset int) ([]*model.Post
 		return nil, fmt.Errorf("failed to get posts: %w", err)
 	}
 	defer res.Close()
+
 	for res.Next() {
 		post := &model.Post{}
 
@@ -114,10 +115,7 @@ func (r *PostRepo) GetTotalCount(ctx context.Context) (int, error) {
 
 	var count int
 
-	err := r.db.QueryRowContext(ctx, query).Scan(
-		&count,
-	)
-
+	err := r.db.QueryRowContext(ctx, query).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get total count of posts: %w", err)
 	}
@@ -132,9 +130,7 @@ func (r *PostRepo) Exists(ctx context.Context, id int) (bool, error) {
 
 	var exists bool
 
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&exists,
-	)
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("failed to check post by id: %w", err)
 	}
@@ -159,6 +155,7 @@ func (r *PostRepo) GetByAuthorID(ctx context.Context, authorID int, limit, offse
 		return nil, fmt.Errorf("failed to get posts by authorID: %w", err)
 	}
 	defer res.Close()
+
 	for res.Next() {
 		post := &model.Post{}
 
@@ -192,10 +189,7 @@ func (r *PostRepo) GetTotalCountByAuthorID(ctx context.Context, authorID int) (i
 
 	var count int
 
-	err := r.db.QueryRowContext(ctx, query, authorID).Scan(
-		&count,
-	)
-
+	err := r.db.QueryRowContext(ctx, query, authorID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get total count of posts by authorID: %w", err)
 	}

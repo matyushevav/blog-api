@@ -13,10 +13,10 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o api ./cmd/api/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o /blog-api ./api
 
 # Runtime stage
-FROM alpine:latest
+FROM alpine:3.20
 
 WORKDIR /app
 
@@ -24,10 +24,10 @@ WORKDIR /app
 COPY --from=builder /app/migrations ./migrations
 
 # Copy built application from builder
-COPY --from=builder /app/api .
+COPY --from=builder /blog-api .
 
 # Expose port
 EXPOSE 8080
 
 # Run application
-CMD ["./api"]
+CMD ["./blog-api"]

@@ -11,8 +11,8 @@ const (
 	// eventsBufferSize - размер буфера канала событий
 	eventsBufferSize = 100
 
-	// writeDelay - задержка перед записью, демонстрирует отложенную обработку
-	writeDelay = 100 * time.Millisecond
+	// writeDelay - задержка перед записью: по заданию 1-2 секунды
+	writeDelay = 1 * time.Second
 
 	// timestampLayout - формат метки времени в файле логов
 	timestampLayout = "2006-01-02 15:04:05"

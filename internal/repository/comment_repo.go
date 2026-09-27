@@ -87,6 +87,7 @@ func (r *CommentRepo) GetByPostID(ctx context.Context, postID int, limit, offset
 		return nil, fmt.Errorf("failed to get comments by postID: %w", err)
 	}
 	defer res.Close()
+
 	for res.Next() {
 		comment := &model.Comment{}
 

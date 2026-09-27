@@ -37,7 +37,8 @@ func CheckPassword(password, hash string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
-// ValidatePasswordStrength проверяет сложность пароля: минимум
+// ValidatePasswordStrength проверяет сложность пароля: минимум minPasswordLength символов,
+// заглавные и строчные буквы, цифры и спецсимволы.
 func ValidatePasswordStrength(password string) error {
 	if password == "" {
 		return ErrEmptyPassword

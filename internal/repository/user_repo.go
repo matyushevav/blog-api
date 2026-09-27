@@ -14,7 +14,7 @@ type UserRepo struct {
 	db *sql.DB
 }
 
-// NewUserRepository создает новый репозиторий пользователей
+// NewUserRepo создает новый репозиторий пользователей
 func NewUserRepo(db *sql.DB) *UserRepo {
 	return &UserRepo{db: db}
 }
@@ -135,9 +135,7 @@ func (r *UserRepo) ExistsByEmail(ctx context.Context, email string) (bool, error
 
 	var exists bool
 
-	err := r.db.QueryRowContext(ctx, query, email).Scan(
-		&exists,
-	)
+	err := r.db.QueryRowContext(ctx, query, email).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("failed to check user by email: %w", err)
 	}
@@ -148,13 +146,11 @@ func (r *UserRepo) ExistsByEmail(ctx context.Context, email string) (bool, error
 // ExistsByUsername проверяет существование пользователя в БД по username.
 func (r *UserRepo) ExistsByUsername(ctx context.Context, username string) (bool, error) {
 	const query = `
-		SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)`
+		SELECT EXISTS(SELECT 1 FROM public.users WHERE username = $1)`
 
 	var exists bool
 
-	err := r.db.QueryRowContext(ctx, query, username).Scan(
-		&exists,
-	)
+	err := r.db.QueryRowContext(ctx, query, username).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("failed to check user by username: %w", err)
 	}

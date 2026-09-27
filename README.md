@@ -1,524 +1,475 @@
-#  Blog Management System - Template Project
+# Blog API
 
-Это шаблон дипломного проекта на Go для разработки REST API блог-платформы с регистрацией пользователей, управлением постами и комментариями.
+REST API для блог-платформы на Go: регистрация и вход пользователей по JWT, посты, комментарии и асинхронный журнал событий.
 
-## 📋 Содержание
+## Содержание
 
-- [О проекте](#о-проекте)
+- [Возможности](#возможности)
+- [Технологии](#технологии)
 - [Структура проекта](#структура-проекта)
-- [Технологический стек](#технологический-стек)
 - [Быстрый старт](#быстрый-старт)
-- [Разработка](#разработка)
-- [API эндпоинты](#api-эндпоинты)
-- [Примеры запросов](#примеры-запросов)
+- [Конфигурация](#конфигурация)
+- [API](#api)
+- [Журнал событий](#журнал-событий)
+- [Проверка работы](#проверка-работы)
 
-## О проекте
+## Возможности
 
-** Blog Management System** - это дипломный проект для студентов программы "Go-разработчик с нуля".
+- регистрация и вход, пароли хранятся в виде bcrypt-хеша;
+- авторизация по JWT (HS256), срок жизни токена настраивается;
+- создание и чтение постов с пагинацией;
+- комментарии к постам;
+- валидация входных данных, ответы и ошибки в формате JSON;
+- журнал событий: создание постов и комментариев пишется в `log.txt` отдельной горутиной через канал;
+- логирование HTTP-запросов в консоль, перехват паник, CORS;
+- graceful shutdown: по Ctrl+C или `docker stop` сервер дорабатывает текущие запросы, журнал дописывается, соединение с БД закрывается;
+- хранение данных в PostgreSQL, миграции применяются автоматически при старте.
 
-Проект демонстрирует:
-- ✅ Основы HTTP сервера и REST API
-- ✅ Работу с JSON и структурами Go
-- ✅ Регистрацию и авторизацию пользователей
-- ✅ Управление постами и комментариями
-- ✅ Хеширование паролей (bcrypt)
-- ✅ JWT токены
-- ✅ Отложенное логирование через горутину и канал
-- ✅ Структурирование проекта по директориям
-- ✅ Контейнеризацию в Docker
+## Технологии
+
+| Что | Чем |
+|---|---|
+| Язык | Go 1.24 |
+| HTTP-роутер | [chi](https://github.com/go-chi/chi) |
+| База данных | PostgreSQL 15, драйвер [lib/pq](https://github.com/lib/pq) |
+| Аутентификация | [golang-jwt/jwt v5](https://github.com/golang-jwt/jwt) |
+| Хеширование паролей | [bcrypt](https://pkg.go.dev/golang.org/x/crypto/bcrypt) |
+| Валидация | [go-playground/validator](https://github.com/go-playground/validator) |
+| Конфигурация | [godotenv](https://github.com/joho/godotenv) |
+| Запуск | Docker, Docker Compose |
 
 ## Структура проекта
 
 ```
-template_project/
-├── cmd/api/
-│   └── main.go                 # Точка входа приложения
+blog-api/
+├── api/
+│   └── main.go                  # точка входа: конфиг, сборка зависимостей, роутер, запуск и остановка
 ├── internal/
-│   ├── handler/                # HTTP обработчики (handlers)
-│   │   ├── auth_handler.go
-│   │   ├── post_handler.go
-│   │   └── comment_handler.go
-│   ├── middleware/             # HTTP middleware (auth, logging)
-│   │   ├── auth.go
-│   │   └── logging.go
-│   ├── model/                  # Модели данных (структуры)
-│   │   └── models.go
-│   ├── storage/                # Работа с JSON файлами
-│   │   ├── user_storage.go
-│   │   ├── post_storage.go
-│   │   └── comment_storage.go
-│   └── logger/                 # Event logger (логирование в файл)
-│       └── event_logger.go
+│   ├── errors/apperrors/        # ошибки приложения (not found, already exists и т.д.)
+│   ├── handler/                 # HTTP-обработчики и перевод ошибок в HTTP-коды
+│   ├── logger/                  # журнал событий: канал + горутина-воркер
+│   ├── middleware/              # JWT-авторизация, логирование запросов, Recovery, CORS
+│   ├── model/                   # модели, запросы, ответы и правила валидации
+│   ├── repository/              # SQL-запросы к PostgreSQL
+│   └── service/                 # бизнес-логика
 ├── pkg/
-│   └── auth/                   # Утилиты аутентификации
-│       ├── jwt.go              # JWT токены
-│       └── password.go         # Хеширование паролей (bcrypt)
-├── data/                       # JSON файлы с данными
-│   ├── users.json
-│   ├── posts.json
-│   └── comments.json
-├── logs.txt                    # Логи событий (создается при запуске)
-├── .env.example                # Пример конфигурации
-├── docker-compose.yml          # Docker Compose
-├── Dockerfile                  # Docker образ
-└── go.mod                      # Зависимости проекта
+│   ├── auth/                    # JWT и bcrypt
+│   └── database/                # подключение к PostgreSQL и миграции
+├── migrations/                  # SQL-миграции, применяются по порядку имен
+├── Dockerfile
+├── docker-compose.yml
+└── .env.example                 # пример конфигурации
 ```
 
-## Технологический стек
-
-- **Язык:** Go 1.21+
-- **Стандартная библиотека:** net/http, encoding/json
-- **Аутентификация:** JWT (golang-jwt/jwt)
-- **Хеширование:** bcrypt (golang.org/x/crypto)
-- **Конфигурация:** godotenv
-- **Логирование:** горутины и каналы
-- **Контейнеризация:** Docker, Docker Compose
+Запрос проходит слои сверху вниз: `middleware` → `handler` → `service` → `repository` → PostgreSQL.
 
 ## Быстрый старт
 
-### Предварительные требования
+Понадобятся Docker и Docker Compose. Для локального запуска без Docker ещё Go 1.24+.
 
-- Go 1.21 или выше
-- Docker и Docker Compose (опционально)
-
-### 1. Подготовка окружения
+### Вариант 1. Всё в Docker
 
 ```bash
-# Клонировать репозиторий
-git clone <repo-url>
-cd template_project
-
-# Скопировать конфигурацию
-cp .env.example .env
-
-# Установить Go зависимости
-go mod download
+docker compose up -d --build
 ```
 
-### 2. Разработка и реализация
-
-После реализации всех компонентов по TODO комментариям:
+Поднимутся два контейнера: PostgreSQL и приложение. API будет доступно на `http://localhost:8080`.
 
 ```bash
-# Запустить приложение локально
-go run cmd/api/main.go
-
-# Приложение будет доступно на http://localhost:8080
+docker compose logs -f app      # логи приложения
+docker compose down             # остановить
+docker compose down -v          # остановить и удалить данные базы
 ```
 
-### 3. Запуск в Docker (опционально)
+Журнал событий внутри контейнера:
 
 ```bash
-# Собрать и запустить в Docker
-docker-compose up --build
-
-# Остановить
-docker-compose down
+docker compose exec app cat log.txt
 ```
 
-## Разработка
+### Вариант 2. Приложение локально, база в Docker
 
-### Что уже готово ✅
-
-- Структура проекта и директории
-- Модели данных (User, Post, Comment)
-- Функции хеширования паролей (HashPassword, CheckPassword)
-- Основные HTTP обработчики с TODO
-- docker-compose.yml для контейнеризации
-
-### Что нужно реализовать ❌
-
-Проект содержит TODO комментарии, которые указывают что реализовать:
-
-#### 1. **Storage (работа с JSON файлами)** - `internal/storage/`
-
-Создайте файлы для работы с данными:
-- `user_storage.go` - сохранение/загрузка пользователей
-- `post_storage.go` - сохранение/загрузка постов
-- `comment_storage.go` - сохранение/загрузка комментариев
-
-Функции для реализации:
-- Загрузка данных из JSON при старте
-- Сохранение новых объектов в JSON
-- Поиск объектов по ID
-- Проверка существования по email/username
-- Синхронизация (написать в файл сразу)
-
-#### 2. **JWT токены** - `pkg/auth/jwt.go`
-
-- `GenerateToken(userID int, email string) (string, error)` - создание токена
-- `ValidateToken(tokenString string) (int, error)` - проверка токена, возврат userID
-
-#### 3. **Middleware** - `internal/middleware/`
-
-- `AuthMiddleware` - проверка JWT токена в заголовке Authorization
-- `LoggingMiddleware` - логирование HTTP запросов
-
-#### 4. **Обработчики** - `internal/handler/`
-
-Реализуйте методы обработчиков:
-
-**AuthHandler:**
-- `Register(w http.ResponseWriter, r *http.Request)` - POST /register
-- `Login(w http http.ResponseWriter, r *http.Request)` - POST /login
-
-**PostHandler:**
-- `Create(w http.ResponseWriter, r *http.Request)` - POST /posts
-- `GetAll(w http.ResponseWriter, r *http.Request)` - GET /posts
-- `GetByID(w http.ResponseWriter, r *http.Request)` - GET /posts/{id}
-
-**CommentHandler:**
-- `Create(w http.ResponseWriter, r *http.Request)` - POST /posts/{id}/comments
-- `GetByPost(w http.ResponseWriter, r *http.Request)` - GET /posts/{id}/comments
-
-#### 5. **Event Logger** - `internal/logger/event_logger.go`
-
-Логирование создания постов и комментариев:
-- `NewEventLogger(filePath string) *EventLogger` - инициализация
-- `LogEvent(event string)` - отправка события в канал
-- `Start()` - запуск worker горутины
-- `Stop()` - остановка логера при завершении приложения
-- `worker()` - горутина, которая записывает логи в файл с задержкой
-
-#### 6. **Главная функция** - `cmd/api/main.go`
-
-Инициализируйте:
-- Загрузку переменных окружения (.env)
-- JWT менеджер
-- Storage (пользователей, постов, комментариев)
-- Event Logger
-- Обработчики
-- Middleware
-- HTTP маршруты
-- HTTP сервер
-- Graceful shutdown (обработка Ctrl+C)
-
-## API эндпоинты
-
-### Публичные эндпоинты
-
-```
-GET    /api/health                     # Проверка здоровья API
-POST   /api/register                   # Регистрация пользователя
-POST   /api/login                      # Вход пользователя
-GET    /api/posts                      # Получить все посты
-GET    /api/posts/{id}                 # Получить пост по ID
-GET    /api/posts/{id}/comments        # Получить комментарии к посту
+```bash
+cp .env.example .env            # один раз, затем задать свой JWT_SECRET
+docker compose up -d db         # только база, наружу на порту 7432
+go run ./api                    # из корня проекта
 ```
 
-### Защищенные эндпоинты (требуют Authorization: Bearer TOKEN)
+Запускать можно и из папки `api` (`go run .`): приложение само находит корень проекта по папке `migrations`, поэтому `.env`, миграции и `log.txt` всегда берутся из корня.
+
+Остановка: Ctrl+C.
+
+## Конфигурация
+
+Настройки берутся из переменных окружения. При локальном запуске они загружаются из файла `.env` в корне проекта, пример лежит в `.env.example`. В Docker их задаёт `docker-compose.yml`.
+
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `DB_HOST` | `localhost` | хост PostgreSQL (в Docker: `db`) |
+| `DB_PORT` | `5432` | порт PostgreSQL (локально с базой из compose: `7432`) |
+| `DB_USER` | `postgres` | пользователь БД |
+| `DB_PASSWORD` | `postgres` | пароль БД |
+| `DB_NAME` | `blog_db` | имя базы |
+| `DB_SSLMODE` | `disable` | режим SSL |
+| `JWT_SECRET` | — | **обязательно**, секрет для подписи токенов; без него приложение не запустится |
+| `JWT_EXPIRY_HOURS` | `24` | срок жизни токена в часах |
+| `SERVER_HOST` | `0.0.0.0` | адрес HTTP-сервера |
+| `SERVER_PORT` | `8080` | порт HTTP-сервера |
+| `LOGS_FILE` | `./log.txt` | файл журнала событий |
+
+В `docker-compose.yml` для `JWT_SECRET` задано запасное значение `change-me-in-production`, чтобы проект запускался без подготовки. Для реального использования задайте свой секрет в `.env`.
+
+## API
+
+Базовый адрес: `http://localhost:8080/api`. Все запросы и ответы в формате JSON.
+
+### Эндпоинты
+
+| Метод | Путь | Авторизация | Описание |
+|---|---|---|---|
+| GET | `/api/health` | — | проверка доступности |
+| POST | `/api/register` | — | регистрация |
+| POST | `/api/login` | — | вход |
+| GET | `/api/profile` | JWT | профиль текущего пользователя |
+| POST | `/api/posts` | JWT | создать пост |
+| GET | `/api/posts` | — | список постов |
+| GET | `/api/posts/{id}` | — | пост по ID |
+| GET | `/api/posts/author/{authorID}` | — | посты автора |
+| POST | `/api/posts/{postId}/comments` | JWT | добавить комментарий |
+| GET | `/api/posts/{postId}/comments` | — | комментарии к посту |
+
+Для эндпоинтов с авторизацией нужен заголовок:
 
 ```
-POST   /api/posts                      # Создать пост
-POST   /api/posts/{id}/comments        # Добавить комментарий к посту
+Authorization: Bearer <token>
 ```
 
-## Примеры запросов
+Токен выдаётся при регистрации и при входе.
 
-### Health Check
+### Формат ошибок
+
+Ошибки обработчиков:
+
+```json
+{
+  "error": "Not Found",
+  "message": "post not found"
+}
+```
+
+`error` — стандартное название HTTP-статуса, `message` — описание причины.
+
+Ошибки авторизации (нет токена, токен неверный или истёк) возвращаются с кодом `401` в коротком виде:
+
+```json
+{
+  "error": "invalid token"
+}
+```
+
+| Код | Когда |
+|---|---|
+| `400` | некорректный JSON, не прошла валидация, неверный ID или параметр пагинации |
+| `401` | нет токена, токен невалиден или истёк; неверный email или пароль |
+| `404` | пост или пользователь не найден |
+| `405` | неподдерживаемый HTTP-метод |
+| `409` | пользователь с таким email или username уже существует |
+| `500` | внутренняя ошибка сервера (подробности только в логах сервера) |
+
+### Пагинация
+
+Списки принимают параметры `limit` и `offset`:
+
+- `limit` — сколько записей вернуть: по умолчанию 10, максимум 100 (большее значение будет урезано до 100);
+- `offset` — сколько записей пропустить: по умолчанию 0.
+
+Если параметр не число, ответ `400`. Ответ со списком содержит массив и общее количество записей:
+
+```json
+{
+  "posts": [ ... ],
+  "total": 42
+}
+```
+
+---
+
+### GET /api/health
+
+Проверка, что сервис работает.
+
 ```bash
 curl http://localhost:8080/api/health
 ```
 
-**Ответ:**
+**200 OK**
+
 ```json
-{
-  "status": "ok"
-}
+{"status": "ok"}
 ```
 
-### Регистрация пользователя
+---
+
+### POST /api/register
+
+Регистрация нового пользователя. Сразу возвращает токен.
+
+| Поле | Правила |
+|---|---|
+| `username` | обязательно, 3–50 символов, уникальное |
+| `email` | обязательно, корректный email, уникальный |
+| `password` | обязательно, минимум 6 символов |
+
 ```bash
 curl -X POST http://localhost:8080/api/register \
   -H "Content-Type: application/json" \
-  -d '{
-    "username": "testuser",
-    "email": "test@example.com",
-    "password": "password123"
-  }'
+  -d '{"username": "testuser", "email": "test@example.com", "password": "password123"}'
 ```
 
-**Ответ (201 Created):**
+**201 Created**
+
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expires_at": "2026-09-28T19:51:49Z",
   "user": {
     "id": 1,
     "username": "testuser",
     "email": "test@example.com",
-    "created_at": "2024-01-15T10:30:00Z"
+    "created_at": "2026-09-27T19:51:49Z"
   }
 }
 ```
 
-### Вход пользователя
+**Ошибки:** `400` — некорректный JSON или данные не прошли валидацию, `409` — email или username уже заняты.
+
+---
+
+### POST /api/login
+
+Вход по email и паролю.
+
 ```bash
 curl -X POST http://localhost:8080/api/login \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "password123"
-  }'
+  -d '{"email": "test@example.com", "password": "password123"}'
 ```
 
-**Ответ (200 OK):**
+**200 OK** — ответ такой же, как у регистрации: `token`, `expires_at`, `user`.
+
+**Ошибки:** `400` — некорректный JSON или данные не прошли валидацию, `401` — неверный email или пароль.
+
+Для несуществующего email и для неверного пароля ответ одинаковый (`invalid email or password`), чтобы по ответу нельзя было узнать, зарегистрирован ли адрес.
+
+---
+
+### GET /api/profile
+
+Профиль владельца токена.
+
+```bash
+curl http://localhost:8080/api/profile \
+  -H "Authorization: Bearer <token>"
+```
+
+**200 OK**
+
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user": {
-    "id": 1,
-    "username": "testuser",
-    "email": "test@example.com",
-    "created_at": "2024-01-15T10:30:00Z"
-  }
+  "id": 1,
+  "username": "testuser",
+  "email": "test@example.com",
+  "created_at": "2026-09-27T19:51:49Z"
 }
 ```
 
-### Создание поста (требуется токен)
+**Ошибки:** `401` — нет токена или он невалиден, `404` — пользователь удалён.
+
+---
+
+### POST /api/posts
+
+Создание поста. Автором становится владелец токена.
+
+| Поле | Правила |
+|---|---|
+| `title` | обязательно, 1–200 символов |
+| `content` | обязательно, не пустое |
+
 ```bash
 curl -X POST http://localhost:8080/api/posts \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
-  -d '{
-    "title": "My First Post",
-    "content": "This is the content of my first post"
-  }'
+  -H "Authorization: Bearer <token>" \
+  -d '{"title": "My First Post", "content": "This is the content of my first post"}'
 ```
 
-**Ответ (201 Created):**
+**201 Created**
+
 ```json
 {
   "id": 1,
   "title": "My First Post",
   "content": "This is the content of my first post",
   "author_id": 1,
-  "created_at": "2024-01-15T10:35:00Z"
+  "created_at": "2026-09-27T19:51:50Z"
 }
 ```
 
-### Получение всех постов
+**Ошибки:** `400` — некорректный JSON или данные не прошли валидацию, `401` — нет токена или он невалиден.
+
+Событие `user <id> created post <id>` записывается в журнал.
+
+---
+
+### GET /api/posts
+
+Список постов, новые сверху.
+
 ```bash
-curl http://localhost:8080/api/posts
+curl "http://localhost:8080/api/posts?limit=10&offset=0"
 ```
 
-**Ответ (200 OK):**
+**200 OK**
+
 ```json
-[
-  {
-    "id": 1,
-    "title": "My First Post",
-    "content": "This is the content of my first post",
-    "author_id": 1,
-    "created_at": "2024-01-15T10:35:00Z"
-  }
-]
+{
+  "posts": [
+    {
+      "id": 1,
+      "title": "My First Post",
+      "content": "This is the content of my first post",
+      "author_id": 1,
+      "created_at": "2026-09-27T19:51:50Z"
+    }
+  ],
+  "total": 1
+}
 ```
 
-### Получение конкретного поста
+Если постов нет, `posts` — пустой массив `[]`.
+
+**Ошибки:** `400` — `limit` или `offset` не число.
+
+---
+
+### GET /api/posts/{id}
+
+Один пост по ID.
+
 ```bash
 curl http://localhost:8080/api/posts/1
 ```
 
-**Ответ (200 OK):**
-```json
-{
-  "id": 1,
-  "title": "My First Post",
-  "content": "This is the content of my first post",
-  "author_id": 1,
-  "created_at": "2024-01-15T10:35:00Z"
-}
+**200 OK** — объект поста, как в ответе на создание.
+
+**Ошибки:** `400` — ID не положительное число, `404` — поста нет.
+
+---
+
+### GET /api/posts/author/{authorID}
+
+Посты одного автора, новые сверху. Параметры пагинации и формат ответа такие же, как у `GET /api/posts`.
+
+```bash
+curl "http://localhost:8080/api/posts/author/1?limit=10&offset=0"
 ```
 
-### Добавление комментария (требуется токен)
+**200 OK** — `{"posts": [...], "total": N}`. Для автора без постов (или несуществующего) — пустой список и `total: 0`.
+
+**Ошибки:** `400` — некорректный ID автора или параметр пагинации.
+
+---
+
+### POST /api/posts/{postId}/comments
+
+Комментарий к посту. ID поста берётся из пути, автором становится владелец токена.
+
+| Поле | Правила |
+|---|---|
+| `content` | обязательно, 1–1000 символов; пробелы по краям обрезаются |
+
 ```bash
 curl -X POST http://localhost:8080/api/posts/1/comments \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
-  -d '{
-    "content": "Great post!"
-  }'
+  -H "Authorization: Bearer <token>" \
+  -d '{"content": "Great post!"}'
 ```
 
-**Ответ (201 Created):**
+**201 Created**
+
 ```json
 {
   "id": 1,
   "content": "Great post!",
   "post_id": 1,
-  "author_id": 2,
-  "created_at": "2024-01-15T10:40:00Z"
+  "author_id": 1,
+  "created_at": "2026-09-27T19:51:50Z",
+  "updated_at": "2026-09-27T19:51:50Z"
 }
 ```
 
-### Получение комментариев к посту
+**Ошибки:** `400` — некорректный ID поста, JSON или текст, `401` — нет токена или он невалиден, `404` — поста нет.
+
+Событие `user <id> created comment <id>` записывается в журнал.
+
+---
+
+### GET /api/posts/{postId}/comments
+
+Комментарии к посту в порядке добавления, старые сверху.
+
 ```bash
-curl http://localhost:8080/api/posts/1/comments
+curl "http://localhost:8080/api/posts/1/comments?limit=10&offset=0"
 ```
 
-**Ответ (200 OK):**
+**200 OK**
+
 ```json
-[
-  {
-    "id": 1,
-    "content": "Great post!",
-    "post_id": 1,
-    "author_id": 2,
-    "created_at": "2024-01-15T10:40:00Z"
-  }
-]
-```
-
-## Конфигурация
-
-Переменные окружения задаются в файле `.env`:
-
-```env
-# Server
-SERVER_HOST=0.0.0.0
-SERVER_PORT=8080
-
-# JWT
-JWT_SECRET=your-secret-key-change-in-production
-JWT_EXPIRY_HOURS=24
-
-# Data storage
-DATA_DIR=./data
-LOGS_FILE=./logs.txt
-
-# Environment
-ENV=development
-```
-
-## Логирование событий
-
-Приложение логирует события создания постов и комментариев в файл `logs.txt`:
-
-```
-[2024-01-15 10:35:45] user 1 created post 1
-[2024-01-15 10:40:20] user 2 created comment 1
-```
-
-Логирование реализовано с использованием:
-- **Канала** (channel) для отправки событий
-- **Горутины** (goroutine) для асинхронной записи в файл
-- **Задержки** (sleep) для демонстрации отложенной обработки
-
-## Архитектура приложения
-
-```
-┌─────────────────┐
-│  HTTP Requests  │
-└────────┬────────┘
-         │
-┌────────▼────────────────────────┐
-│ Middleware (Auth, Logging)      │
-└────────┬────────────────────────┘
-         │
-┌────────▼─────────────┐
-│ Handlers (HTTP API)  │ ← Парсинг JSON, валидация
-└────────┬─────────────┘
-         │
-┌────────▼─────────────┐
-│ Storage (JSON)       │ ← Сохранение/загрузка данных
-└────────┬─────────────┘
-         │
-┌────────▼──────────────┐
-│ JSON файлы            │ ← users.json, posts.json, comments.json
-└───────────────────────┘
-```
-
-## Ключевые концепции
-
-### Структуры (Structs)
-
-Используйте теги для JSON сериализации:
-```go
-type User struct {
-    ID        int       `json:"id"`
-    Username  string    `json:"username"`
-    Email     string    `json:"email"`
-    Password  string    `json:"-"`  // Не включать в JSON
-    CreatedAt time.Time `json:"created_at"`
-}
-```
-
-### JWT токены
-
-Токены генерируются при регистрации/входе и проверяются в middleware:
-```
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
-### Горутины и каналы
-
-Event Logger использует канал для отправки событий и горутину для их обработки:
-```go
-eventsChan := make(chan string, 100)
-go worker(eventsChan)  // Горутина записывает логи
-eventsChan <- "user 1 created post 1"  // Отправка события
-```
-
-### Обработка ошибок
-
-Всегда проверяйте ошибки и возвращайте правильные HTTP коды:
-```go
-if err != nil {
-    if err == ErrUserNotFound {
-        http.Error(w, "User not found", http.StatusNotFound)
-        return
+{
+  "comments": [
+    {
+      "id": 1,
+      "content": "Great post!",
+      "post_id": 1,
+      "author_id": 1,
+      "created_at": "2026-09-27T19:51:50Z",
+      "updated_at": "2026-09-27T19:51:50Z"
     }
-    http.Error(w, "Internal server error", http.StatusInternalServerError)
-    return
+  ],
+  "total": 1
 }
 ```
 
-## Полезные команды
+**Ошибки:** `400` — некорректный ID поста или параметр пагинации, `404` — поста нет.
 
-```bash
-# Скачать зависимости
-go mod download
+## Журнал событий
 
-# Запустить приложение
-go run cmd/api/main.go
+При создании поста или комментария обработчик отправляет строку-событие в буферизованный канал и сразу отвечает клиенту, не дожидаясь записи на диск. Отдельная горутина-воркер читает канал и дописывает события в `log.txt` с задержкой в 1 секунду:
 
-# Собрать приложение
-go build -o api ./cmd/api/main.go
-./api
-
-# Запустить в Docker
-docker-compose up --build
-
-# Остановить Docker сервисы
-docker-compose down
-
-# Просмотреть логи приложения
-tail -f logs.txt
-
-# Проверить JSON файлы данных
-cat data/users.json
-cat data/posts.json
-cat data/comments.json
+```
+[2026-09-27 19:51:51] user 1 created post 1
+[2026-09-27 19:51:52] user 1 created comment 1
 ```
 
-## Требования к сдаче
+При остановке сервера канал закрывается, воркер дописывает все оставшиеся события и только после этого закрывает файл. Если буфер канала (100 событий) переполнен, событие не записывается, а в консоль выводится предупреждение: запрос пользователя при этом не задерживается.
 
-Перед отправкой убедитесь, что:
+HTTP-запросы отдельно логируются в консоль: адрес клиента, метод, путь, код ответа и время обработки.
 
-- ✅ Все 6 публичных эндпоинтов работают
-- ✅ Оба защищенных эндпоинта работают (требуют токен)
-- ✅ Регистрация создает уникального пользователя
-- ✅ Авторизация выдает JWT токен
-- ✅ Посты и комментарии сохраняются в JSON файлы
-- ✅ Логирование работает (события в logs.txt с задержкой)
-- ✅ Приложение запускается через `go run` и Docker
-- ✅ Коды ошибок правильные (400, 401, 404, 500 и т.д.)
-- ✅ README актуален
+## Проверка работы
 
-## Полезные ссылки
+Для проверки API есть Postman-коллекция: [`postman/blog-api.postman_collection.json`](postman/blog-api.postman_collection.json). В ней 23 запроса по всем эндпоинтам: успешные сценарии и основные ошибки (400, 401, 404, 409). У каждого запроса есть тест на ожидаемый код ответа.
 
-- [Go Tour](https://tour.golang.org/) - интерактивное введение в Go
-- [HTTP пакет в Go](https://pkg.go.dev/net/http) - официальная документация
-- [JSON в Go](https://pkg.go.dev/encoding/json) - работа с JSON
-- [JWT-go документация](https://github.com/golang-jwt/jwt) - JWT токены
-- [bcrypt документация](https://pkg.go.dev/golang.org/x/crypto/bcrypt) - хеширование паролей
+1. Запустите приложение на чистой базе (см. [Быстрый старт](#быстрый-старт)).
+2. В Postman: **Import** → выберите файл коллекции.
+3. Выполните **Auth → Register**, затем **Auth → Login**.
+4. Скопируйте `token` из ответа Login и вставьте его в переменную коллекции `token` (вкладка **Variables** у коллекции), сохраните.
+5. Выполняйте остальные запросы по порядку или запустите всю коллекцию через **Run collection**.
+
+У коллекции две переменные:
+
+| Переменная | Значение |
+|---|---|
+| `baseUrl` | адрес API, по умолчанию `http://localhost:8080/api` |
+| `token` | JWT для запросов с авторизацией, заполняется вручную после Login |
+
+В защищённых запросах токен задан на вкладке **Authorization** (тип **Bearer Token**, значение `{{token}}`), отдельно заголовок `Authorization` добавлять не нужно. Запросы, проверяющие ответ без токена, помечены типом **No Auth**.

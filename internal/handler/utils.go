@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -40,12 +41,13 @@ func WriteError(w http.ResponseWriter, message string, statusCode int) {
 // TODO: Реализовать HandleServiceError(w http.ResponseWriter, err error)
 // 1. Проверить тип ошибки используя errors.Is()
 // 2. Для каждого типа ошибки из apperrors вернуть нужный HTTP статус:
-//    - ErrUserAlreadyExists -> 409 Conflict
-//    - ErrInvalidCredentials -> 401 Unauthorized
-//    - ErrPostNotFound -> 404 Not Found
-//    - ErrCommentNotFound -> 404 Not Found
-//    - ErrForbidden -> 403 Forbidden
-//    - ErrUnauthorized -> 401 Unauthorized
+//   - ErrUserAlreadyExists -> 409 Conflict
+//   - ErrInvalidCredentials -> 401 Unauthorized
+//   - ErrPostNotFound -> 404 Not Found
+//   - ErrCommentNotFound -> 404 Not Found
+//   - ErrForbidden -> 403 Forbidden
+//   - ErrUnauthorized -> 401 Unauthorized
+//
 // 3. Проверить validator.ValidationErrors -> 400 Bad Request
 // 4. Для других ошибок -> 500 Internal Server Error
 // 5. Использовать WriteError() для отправки ответа с нужным сообщением
@@ -77,4 +79,15 @@ func HandleServiceError(w http.ResponseWriter, err error) {
 		log.Printf("Unhandled service error: %v", err)
 		WriteError(w, "internal server error", http.StatusInternalServerError)
 	}
+}
+
+// queryInt читает целочисленный параметр из query-строки.
+// Если параметра нет, возвращает 0 без ошибки.
+func queryInt(r *http.Request, key string) (int, error) {
+	raw := r.URL.Query().Get(key)
+	if raw == "" {
+		return 0, nil
+	}
+
+	return strconv.Atoi(raw)
 }

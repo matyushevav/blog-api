@@ -27,4 +27,3 @@ var (
 	// ErrInvalidPostID - передан невалидный ID поста.
 	ErrInvalidPostID = errors.New("invalid post id")
 )
-

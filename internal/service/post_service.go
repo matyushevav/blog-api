@@ -64,8 +64,8 @@ func (s *PostService) GetByID(ctx context.Context, id int, requestorID int) (*mo
 	if post == nil {
 		return nil, apperrors.ErrPostNotFound
 	}
-	return post, nil
 
+	return post, nil
 }
 
 // GetAll получает слайс всех постов с количеством.
